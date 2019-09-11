@@ -3,8 +3,11 @@
 \usepackage{bm}
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage{fontspec}
 \usepackage{booktabs}
 \graphicspath{{figures/}{}}
+\usepackage{amsfonts}
+\usepackage{amsmath}
 
 \renewcommand\thesection{\arabic{section}} 
 \renewcommand {\thetable} {\thesection{}.\arabic{table}}
@@ -18,30 +21,45 @@
 }
 
 \title{信息论 project\\JPEG2000}
-\author{高云帆 15307130314\\张奕朗 16307130242\\陈幸豪}
+\author{高云帆\\张奕朗 16307130242\\陈幸豪 16307130006}
 \date{\today}
 
 \begin{document}
 \maketitle
 
-\input{beginning}
-\setcounter{table}{0}
-\setcounter{figure}{0}
+\section{综述}
+
+%\subsection{整体流程}
+
+%\subsection{分工}
+高云帆：\par
+张奕朗：\par
+陈幸豪：色彩空间变换，量化，搭整个程序的框架，设计协调整个流程的数据结构。
+
 \input{tiling}
-\setcounter{table}{0}
-\setcounter{figure}{0}
+
+\input{colorSpace}
+
 \input{wavelet}
-\setcounter{table}{0}
-\setcounter{figure}{0}
+
+\input{quantization}
+
 \input{EBCOT}
-\setcounter{table}{0}
-\setcounter{figure}{0}
-\input{arithmeticCoding}
-\setcounter{table}{0}
-\setcounter{figure}{0}
-\input{bitGenerate}
-\setcounter{table}{0}
-\setcounter{figure}{0}
-\input{result}
-\input{reference}
+%\input{arithmeticCoding}
+
+\section{结果}
+压缩前后大小比较、图片比较
+
+\begin{thebibliography}{1}
+\bibitem{github} jpeg2000. Jordan Van Duyne. https://github.com/jovanduy/jpeg2000.
+\bibitem{book1} Taubman D , Marcellin M . JPEG2000图像压缩基础、标准和实践[M]. 电子工业出版社, 2004.
+\bibitem{csdn1} CSDN:压缩算法——JPEG2000 编解码原理. 佚名. https://blog.csdn.net/ytang\_/article/details/76571635.
+\bibitem{baidu} 百度文库:Daubechies 97和Le Gall 53小波分解与合成. 佚名. https://wenku.baidu.com/view/84fc5c7caaea998fcc220e7b.
+\bibitem{zhihu1} 知乎:能不能通俗的讲解下傅立叶分析和小波分析之间的关系？. 佚名. https://www.zhihu.com/question/22864189/answer/40772083.
+\bibitem{pywavelets} pywavelets官方文档. 佚名. https://pywavelets.readthedocs.io/en/latest/index.html.
+\bibitem[7]{quantizer} P. E. Fleischer.  Sufficient  conditions for achieving minimum  distortion in a quantizer. IEEE Int. Conv. Rec., 1:104-111, 1964. 
+\bibitem[8]{optimalQuantizer}Farvardin N , Modestino J W . Optimum quantizer performance for a class of non-Gaussian memoryless sources[J]. IEEE Transactions on Information Theory, 1984, 30(3):485-497.
+\end{thebibliography}
+
+
 \end{document}

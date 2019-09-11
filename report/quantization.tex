@@ -1,0 +1,162 @@
+\section{量化}
+
+JPEG2000中的量化是将小波系数的大量可能的离散取值近似为较少个离散值的过程，即小波子带的样本通过量化过程映射到量化索引中。本文用$Q(x)$表示对$x$量化所得的值，而反量化表示为$\hat{x}=\overline{Q^{-1}}(Q(x))$。非细小的量化本身是不可逆的，所以JPEG2000的无损压缩中不包括量化。但在对小波系数进行编码时，不论有损或无损压缩，我们都必须为编码器提供待编码数值的一致解释，称为界定（ranging）。有损压缩中，量化本身就是一种界定过程。而无损压缩需要一段独立程序来完成界定。代码中的量化的核心函数名为\textit{quantization\_math}，入口函数名逐次为\textit{quantization}和\textit{quantization\_helper}。\par
+不同的量化策略对画质和码率的影响很大。限于个人水平和时间，加上小波系数的“概率分布”难以描述，且为了保险起见（复杂的量化策略会带来复杂的数据结构，而量化过程承上启下，数据结构不容出错）（事实上确实出错了一次，用递归方式修正回来了），我们只在程序中对有损压缩使用了最简单的标量均匀量化器，而无损压缩不经过量化或界定。均匀量化的性能并非最佳，但我们可以通过优化均匀量化方式来提升相同比特率下的显示效果。
+
+\subsection{标量量化}
+标量量化（SQ）是最简单的处理方式。它将实轴的一个子集中的每一个元素映射为该子集中的一个特定值。考虑将实轴划分为M个不相交的区间
+\begin{equation}
+\begin{aligned}
+I_{q}=[t_{q},t_{q+1}),q=0,1,...,M-1
+\end{aligned}
+\end{equation}
+其中
+\begin{equation}
+\begin{aligned}
+-\infty=t_{0}<t_{1}<...<t_{M}=+\infty
+\end{aligned}
+\end{equation}
+在每个区间内，选择点$x_{q}$作为$I_{q}$的输出值，则可将标量量化器理解为从$\mathbb{R}$到${0,1,,...,M-1}$的映射。对一个给定的$x$，$Q(x)$是包含x的区间$I_{q}$的索引。均匀量化的反量化器由
+\begin{equation}
+\begin{aligned}
+\overline{Q^{-1}}(q)=x_{q}
+\end{aligned}
+\end{equation}
+给出。
+
+\subsection{标量量化器的优化：Lloyd-Max标量量化}
+若要求$Q(x)$所有可能取值的个数$M$是固定不变的，则我们可以根据某些条件来优化量化过程。满足这些条件的量化器称为Lloyd-Max量化器。我们假定一个平稳过程具有边缘概率密度函数$f_{X}$，并采用均方误差（MSE）来度量失真。则有
+\begin{equation}
+\begin{aligned}
+\text{MSE}&=E\left[(X-\hat{X})^{2}\right]\\
+&=\sum\limits_{q = 0}^{M - 1} {E\left[(X-\hat{X})^{2}|X \in I_{q}\right]P(X \in I_{q})}\\
+&=\sum\limits_{q = 0}^{M - 1} {\int_{{t_q}}^{{t_{q+1}}} {{{(x - \hat{x}_q)}^2}{f_X}(x)dx} }
+\end{aligned}
+\end{equation}
+若要求$\frac{\partial (\text{MSE})}{\partial {t_q}}=0$，即${({t_q} - \hat{x}_{q-1})^2}{f_x}({t_q}) - {({t_q} - \hat{x}_q)^2}{f_x}({t_q}) = 0$，可解得
+\begin{equation}
+t_q=\frac{\hat{x}_{q-1}+\hat{x}_{q}}{2}, q=1,2,...,M-1\label{eqn:tq}
+\end{equation}
+类似地，由$\frac{\partial (\text{MSE})}{\partial {\hat{x}_q}}=0$解得
+\begin{equation}
+\hat{x}_{q}=\frac{\int_{{t_q}}^{{t_{q+1}}} {x{f_X}(x)dx}}{\int_{{t_q}}^{{t_{q+1}}} {{f_X}(x)dx}}, q=1,2,...,M-1\label{eqn:xq}
+\end{equation}
+式(\ref{eqn:tq})和(\ref{eqn:xq})构成优化标量量化器的必要条件。(\ref{eqn:tq})表明量化器决策区域的端点应该在输出点的中间（不是“输出点在端点之间”！）。(\ref{eqn:xq})的分母是$X$位于$I_{q}$中的概率，由此可得
+\begin{equation}
+\hat{x}_q=E\left[X|X \in I_{q}\right]
+\end{equation}
+满足这一性质的码字称为“条件均值”或“质心”。\par
+此外，由式(\ref{eqn:tq})和(\ref{eqn:xq})可得以下性质
+\begin{equation}
+E[X-\hat{X}]=0
+\end{equation}
+\begin{equation}
+\sigma_{\hat{X}}^2= \sigma_{X}^2-E[(X-\hat{X})^2]
+\end{equation}
+\begin{equation}
+E[(X-\hat{X})\hat{X}]=0
+\end{equation}
+\begin{equation}
+E[(X-\hat{X})^2|X \in I_{j}]P(X \in I_{j})=E[(X-\hat{X})^2|X \in I_{q}]P(X \in I_{q}), \forall j,q
+\end{equation}
+这些性质分别说明：量化误差均值为0（不论是否有$E(X)=0$）；量化使数据方差减小的量等于均方误差；量化误差与量化器输出无关（但不是与输入无关）；所有区间对量化误差的贡献相等。\par
+式(\ref{eqn:tq})和(\ref{eqn:xq})只是必要条件，因此不能保证最优化。但对于所有对数凹概率密度函数（即$\log f_{X}$是凹函数或凸函数），最优化是可以保证的[7]。幸运的是，均匀分布、拉普拉斯分布和正态分布都满足这一性质。另外，在均匀量化的基础上，我们可以对某些量化区间再进行均匀划分。这样就构造了一族嵌入均匀标量量化器。可以证明，这些量化器全部满足均匀分布的Lloyd-Max条件。
+
+\subsection{恒域量化}
+显然，步长为$\Delta$的均匀量化
+\begin{equation}
+I_{q}=\left[q\Delta-\frac{\Delta}{2},q\Delta+\frac{\Delta}{2}\right)
+\end{equation}
+一般不是最优量化，然而具有均匀区间，且质心码字为$\hat{x}_{q}=E[X|X \in I_{q}]$的量化器是非常接近最优量化的[8]。对于零均值概率密度函数，如果在均匀量化基础上加宽以0为中心的区间，常常可以使MSE性能获得改进，并减小量化输出值的熵$H(\hat{X})$。被加宽的零均值区间$I_{0}$有时被称为“储零箱（zero-bin）”。这种量化称为“恒域（deadzone）均匀标量量化”。其数学描述为
+\begin{equation}
+I_{q}=\left\{
+\begin{aligned} %一定要有\begin{aligned}
+&\left[-(1-\xi)\Delta, (1-\xi)\Delta\right), &q=0\\
+&\left[(q-\xi)\Delta, (q+1-\xi)\Delta\right), &q>0\\
+&\left[(q-1+\xi)\Delta, (q+\xi)\Delta\right), &q<0\\
+\end{aligned}
+\right.
+\end{equation}
+其中$\xi<1$决定$I_{0}$的宽度。这个量化器的具体实现为
+\begin{equation}
+q=Q(x)=\left\{
+\begin{aligned} %一定要有\begin{aligned}
+&\text{sgn}(x)\left\lfloor \frac{|x|}{\Delta}+\xi\right\rfloor, &\frac{|x|}{\Delta}+\xi>0\\
+&0, &\text{其他}\\
+\end{aligned}
+\right.
+\end{equation}
+
+JPEG2000标准要求小波子带样本$b$可被恒域量化（$b$可代表LL,LH,HL,HH），且中央量化间隔（即恒域）是其他量化间隔的2倍。此时有$\xi=0$，即
+\begin{equation}
+q_{b}[n]=\text{sgn}(y_{b}[n])\left\lfloor\frac{|y_{b}[n]|}{\Delta_{b}}\right\rfloor
+\end{equation}
+其中$y_{b}[n]\in\left[-\frac{1}{2}, \frac{1}{2}\right]$表示子带$b$的样本，而$q_{b}[n]$表示其量化索引。每个子带量化时的步长为
+\begin{equation}
+\Delta_b=2^{-\epsilon_{b}}\left(1+\frac{\mu_{b}}{2
+^{11}}\right)\label{eqn:Deltab}
+\end{equation}
+其中$\epsilon_{b}$和$\mu_{b}$都是非负整数。范围为
+\begin{equation}
+0\leq\epsilon_{b}<2^{5}, 0\leq\mu_{b}<2^{11}
+\end{equation}
+
+\subsection{界定}
+为便于表示，首先令
+\begin{equation}
+\chi_{b}[n]=\text{sgn}(y_{b}[n])
+\end{equation}
+\begin{equation}
+\nu_{b}[n]=\left\lfloor\frac{|y_{b}[n]|}{\Delta_{b}}\right\rfloor
+\end{equation}
+界定的目的是在编码器与解码器中取相同的位数，该位数足够显示每个子带$b$的量化索引大小$\nu_{q}[n]$。将足够位数记为$K_{b}^{max}$。此外，对于超出标称范围的小波子带样本值，引入整数$G$，使所有子带样本满足
+\begin{equation}
+-2^{G-1}<y_{b}[n]<2^{G-1}, \forall b\label{eqn:G}
+\end{equation}
+参数$G$称为保护位（guard bits）的数目，取值范围0到7。$G$取0时，有$y_{b}[n]\in \left(-\frac{1}{2}, \frac{1}{2}\right)$。但事实上很少出现$G$可为0的情况。更常见的是$G=1$。而当使用CDF 9/7小波核时，$G=1$足以保证式(\ref{eqn:G})的成立。由(\ref{eqn:Deltab})和(\ref{eqn:G})可得，索引大小必须满足
+\begin{equation}
+\nu_{b}[n]=\left\lfloor\frac{|y_{b}[n]|}{\Delta_{b}}\right\rfloor<2^{\epsilon_{b}+G-1}
+\end{equation}
+于是
+\begin{equation}
+K_{b}^{max}=\text{max}\{0, \epsilon_{b}+G-1\}
+\end{equation}
+
+\subsection{反量化}
+假设子带样本$y$已经分配了一个量化索引$q=\chi\nu$。反量化的目的是分配一个重建值$\hat{y}\in I_{q}$。在恒域标量量化情况下，重建过程为
+\begin{equation}
+\hat{y}_{b}[n]=
+\left\{
+	\begin{aligned}
+	&0, &\nu_{b}[n]=0\\
+	&\chi_{b}[n](\nu_{b}[n]+\delta_{b,\nu})\Delta_{b}, &\nu_{b}[n]\neq 0\\
+	\end{aligned}
+\right.
+\end{equation}
+参数$\delta_{b,\nu}$可在$\left[0,1\right)$之间取任何值。理想情况下$\delta_{b,\nu}$应使$\hat{y}$为$I_{q}$的统计质心，但是反量化时访问每一个小波子带的基本统计量是不现实的（解压缩的反量化过程中并不知道小波子带是怎样的！）。$\delta_{b,\nu}=\frac{1}{2}$是一个保险的选择，对应中间点重建。但经验表明，选择较小的值（例如$\frac{3}{8}$）可获得一些较小的改善，尤其对于高频小波子带而言。
+
+\subsection{无损压缩中的界定和重建}
+无损压缩采用整数小波变换，而量化索引与整数小波子带样本相等，即$q_{b}[n]=y_{b}[n]$。这些整数样本的标称范围可从原始图片Y'DbDr样本位数和小波核的标称增益来确定。选择合适的保护位个数$G$（典型值为1），使得所有子带样本满足
+\begin{equation}
+-2^{B-1+X_{b}+G}<y_{b}[n]<2^{B-1+X_{b}+G}
+\end{equation}
+其中$X_{b}$为小波核的子带$b$的标称增益，即
+\begin{equation}
+X_{LL}=0, X_{LH}=X_{HL}=1, X_{HH}=2
+\end{equation}
+这样，需要
+\begin{equation}
+K_{b}^{max}=B-1+X_{b}+G
+\end{equation}
+的位数才足够表示$v_{b}[n]$。\par
+无损情况下，界定的重建过程为
+\begin{equation}
+\hat{y}_{b}[n]=
+\left\{
+\begin{aligned}
+&0, &\nu_{b}[n]=0\\
+&\chi_{b}[n](\nu_{b}[n]+\left\lfloor 2^{p_{b}[n]}\delta\right\rfloor)\Delta_{b}, &\nu_{b}[n]\neq 0\\
+\end{aligned}
+\right.
+\end{equation}
+其中$p_{b}[n]$表示索引大小的最低位数。

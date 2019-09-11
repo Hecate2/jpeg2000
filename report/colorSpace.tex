@@ -1,0 +1,168 @@
+\section{颜色空间变换}
+
+通常所谓的颜色由红绿蓝（RGB）组成，即RGB形成了颜色空间的一组基。其他常用颜色空间有CMY，HSV，YCbCr等。JPEG2000标准中，可以选择将RGB颜色变换到其他空间。需要注意的是，图像可能有超过3个颜色分量，而JPEG2000的颜色变换只运用于前3个颜色分量。此外，变换过程在理论上不区分输入的颜色空间，即输入颜色不一定须为RGB数据。颜色空间变换的目的是利用三个图像分量组合之间的冗余。例如人眼对YCbCr空间的Y分量更敏感，而对Cb、Cr分量相对不敏感。此时可对Y分量做无损压缩，而对CbCr做有损压缩。此时图片的体积可被减小，而观感相比无损压缩没有明显损失。\par
+
+JPEG2000定义了不可逆彩色变换（ICT）和可逆彩色变换（RCT）。ICT计算过程中使用的小数难以被二进制精确表示，即必然存在计算误差。因此无损压缩必须使用RCT。代码中颜色空间变换的函数名为\textit{component\_transformation}，可按压缩方式选择ICT或RCT。下面分别介绍两种变换。
+
+\subsection{ICT}
+ICT可视为一个线性变换。它将归一化到$\left[-\frac{1}{2}, \frac{1}{2}\right]$的RGB彩色变换到YCbCr空间。首先定义以下加权因子
+\begin{equation}
+\begin{aligned}
+\alpha_R=0.299, \alpha_G=0.587,\alpha_B=0.114
+\end{aligned}
+\end{equation}
+以及变换关系
+\begin{equation}
+\begin{aligned}
+x_{Y}[n]=\alpha_{R}x_{R}[n]+\alpha_{G}x_{G}[n]+\alpha_{B}x_{B}[n]\\
+x_{Cb}[n]=\frac{0.5}{1-\alpha_B}(x_{B}[n]-x_{Y}[n])\\
+x_{Cr}[n]=\frac{0.5}{1-\alpha_B}(x_{R}[n]-x_{Y}[n])
+\end{aligned}
+\end{equation}
+这一关系可用矩阵表示如下
+\begin{equation}
+\begin{aligned}
+\left(
+\begin{array}{c}
+x_{Y}[n]\\
+x_{Cb}[n]\\
+x_{Cr}[n]
+\end{array}
+\right)
+=
+\left(
+\begin{array}{ccc}
+0.299 & 0.587 & 0.114\\
+-0.168736 & -0.331264 & 0.5\\
+0.5 & -0.418688 & -0.081312
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+x_{R}[n]\\
+x_{G}[n]\\
+x_{B}[n]
+\end{array}
+\right)
+\end{aligned}
+\end{equation}
+
+需要注意，以上矩阵中使用的小数都是近似值。实际计算中，所有数值必须精确处理。\par
+在有损压缩中，若输入的RGB值域已被归一化到$\left[-\frac{1}{2}, \frac{1}{2}\right]$，则不难证明，输出的YCbCr值域也在$\left[-\frac{1}{2}, \frac{1}{2}\right]$。其中$x_{Y}$是RGB分量的加权平均，被认为是图像强度（或亮度）的量度。该权重了反映可见光谱中绿色段信息对于视觉感知的重要性。\par
+
+解压缩过程中，对应的ICT反变换如下
+
+\begin{equation}
+\begin{aligned}
+\left(
+\begin{array}{c}
+x_{R}[n]\\
+x_{G}[n]\\
+x_{B}[n]
+\end{array}
+\right)
+=
+\left(
+\begin{array}{ccc}
+1 & 0 & 1.402\\
+1 & -0.344136 & -0.714136\\
+1 & 1.772 & 0
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+x_{Y}[n]\\
+x_{Cb}[n]\\
+x_{Cr}[n]
+\end{array}
+\right)
+\end{aligned}
+\end{equation}
+其中仅第1行和第3行的小数为精确值。\par
+
+ICT反变换不具有正向变换的范围保持特性。此外，由于输入的$x_{Y}[n]$、$x_{Cb}[n]$和$x_{Cr}[n]$通常已被量化所损坏，所以由ICT反变换重建的RGB值不一定落在$\left[-\frac{1}{2}, \frac{1}{2}\right]$。
+解压缩程序可对超出范围的RGB样本值进行处理，但JPEG2000标准并未指定处理方法。\par
+
+\subsection{RCT}
+RCT将值域为$\left[-2^B, 2^B-1\right]$的RGB彩色变换到Y'DbDr空间。RCT由以下非线性关系定义
+\begin{equation}
+\begin{aligned}
+x_{Y}'[n]&=\left \lfloor \frac{x_{R}[n]+2x_{G}[n]+x_{B}[n]}{4} \right \rfloor\\
+x_{Db}[n]&=x_{B}[n]-x_{G}[n]\\
+x_{Dr}[n]&=x_{R}[n]-x_{G}[n]
+\end{aligned}
+\end{equation}
+
+其中$\left \lfloor \textit{x} \right \rfloor$表示小于等于\textit{x}的最大整数。\par
+可以证明RCT能被精确地反变换。由于
+\begin{equation}
+\begin{aligned}
+\left \lfloor \frac{x_{Db}[n]+x_{Dr}[n]}{4} \right \rfloor
+&=\left \lfloor \frac{x_{R}[n]+2x_{G}[n]+x_{B}[n]}{4}-x_{G}[n] \right \rfloor\\
+&=x_{Y}'[n]-x_{G}[n]
+\end{aligned}
+\end{equation}
+因此我们可以先重建$x_{G}[n]$，再借此重建$x_{R}[n]$和$x_{B}[n]$。定义RCT反变换为
+\begin{equation}
+\begin{aligned}
+x_{G}[n]&=x_{Y}'[n]-\left \lfloor \frac{x_{Db}[n]+x_{Dr}[n]}{4} \right \rfloor\\
+x_{B}[n]&=x_{Db}[n]+x_{G}[n]\\
+x_{R}[n]&=x_{Dr}[n]+x_{G}[n]
+\end{aligned}
+\end{equation}
+
+RCT也可以近似取一种变换关系如下
+\begin{equation}
+\begin{aligned}
+\left(
+\begin{array}{c}
+x_{Y}'[n]\\
+x_{Db}[n]\\
+x_{Dr}[n]
+\end{array}
+\right)
+=
+\left(
+\begin{array}{ccc}
+0.25 & 0.5 & 0.25\\
+0 & -1 & 1\\
+1 & -1 & 0
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+x_{R}[n]\\
+x_{G}[n]\\
+x_{B}[n]
+\end{array}
+\right)
+\end{aligned}
+\end{equation}
+其反变换可近似为
+\begin{equation}
+\begin{aligned}
+\left(
+\begin{array}{c}
+x_{R}[n]\\
+x_{G}[n]\\
+x_{B}[n]
+\end{array}
+\right)
+=
+\left(
+\begin{array}{ccc}
+1 & -0.25 & -0.25\\
+1 & -0.25 & 0.75\\
+1 & 0.75 & -0.25
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+x_{Y}'[n]\\
+x_{Db}[n]\\
+x_{Dr}[n]
+\end{array}
+\right)
+\end{aligned}
+\end{equation}
+这里的近似仅仅修改了变换关系，没有对任何数值进行舍入处理。所以近似变换依然是无损的。

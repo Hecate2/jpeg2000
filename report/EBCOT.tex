@@ -3,7 +3,7 @@
 \subsubsection{零编码（zero coding）}
 
 该编码根据待编码的数据比特周围的8个相邻数据重要性情况生成上下文（CX）。如表{~\ref{tab:neighbourhood}}所示，D0、D1、D2、D3分别表示待编码数据比特X对角线的数据状态值；V0、V1分别表示X垂直方向的状态值，H0、H1分别表示X平方向的状态值。通过计算$\sum H_i,  \sum V_i, \sum D_i$的数值，对X进行基于子带的编码。返回D和Context，D为X的值，Context的编码如图{~\ref{fig:zero coding}}所示。\textit{代码见函数ZeroCoding。}
-\begin{table}[H]
+\begin{table}[h]
 \begin{center}
 \begin{tabular}{|c|c|c|}
 \hline
@@ -19,7 +19,7 @@ $D_2$ & $V_1$ & $D_3$\\
 \label{tab:neighbourhood}
 \end{table}
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering  
 \includegraphics [width=6in]{zerocoding.jpg} 
 \caption{零编码(zero coding)上下文(context)编码方式} 
@@ -29,7 +29,7 @@ $D_2$ & $V_1$ & $D_3$\\
 \subsubsection{符号编码(Sign Coding)}
 该编码根据待编码的数据比特上、下、左、右的4个相邻数据重要性情况以及待编码数据的符号位编码，返回符号编码（XORbit）和Context。具体编码规则如表{~\ref{tab:sign coding}}所示。其中“1”表示在垂直或者水平方向的相邻两个数据都为重要并且符号都为正；或者只有一个是重要的情况。“0”表示两个方向的相邻数据中两个数据都不重要或者都为重要但是具有不同的符号。-1表示的情况和1的情况相反。\textit{代码见函数SignCoding。}
 
-\begin{table}[H]
+\begin{table}[h]
 \begin{center}
 \begin{tabular}{|c|c|c|c|}
 \hline
@@ -62,7 +62,7 @@ $D_2$ & $V_1$ & $D_3$\\
 \subsubsection{幅度精炼编码(Magnitude Refinement Coding)}
 根据该数据位是否被第一次精炼，以及$\sum H_i +  \sum V_i + \sum D_i$的值进行编码，返回D和Context。D为X的值，Context的编码规则如表{~\ref{tab:magnitude coding}}所示。\textit{代码见函数MagnitudeRefinementCoding。}
 
-\begin{table}[H]
+\begin{table}[h]
 \begin{center}
 \begin{tabular}{|c|c|c|}
 \hline
@@ -83,7 +83,7 @@ $D_2$ & $V_1$ & $D_3$\\
 \subsubsection{游程编码(Run Length Coding)}
 仅当一个编码列(4个比特数据)的目前状态都为不重要，且相邻元素也都为不重要时，开始进行游程编码处理。这时，如果一列中的4个数据也为不重要数据，则统一编码为一个上下文编码CX=17和编码数据D=0。如果4个数据中至少有一个变为重要，则首先将其表示一个上下文CX=17和编码数据D=1。然后，编码4个数据中的第一个重要数据的位置信息(00~11)作为D，并编码上下文为CX=18。此后，编码第一个重要数据的符号位，之后数据的编码按照零编码算法进行。具体编码规则如表{~\ref{tab:runlength coding}}所示。\textit{代码见函数RunLengthCoding。}
 
-\begin{table}[H]
+\begin{table}[h]
 \begin{center}
 \begin{tabular}{|c|c|c|}
 \hline
@@ -110,7 +110,7 @@ $D_2$ & $V_1$ & $D_3$\\
 在此通道中，编码位平面中的目前状态为“无效态”，但有很大概率成为“有效态”的比特数
 据。只要四周的8个比特数据有一个是重要的，就将被进行零编码(Zero Coding)。在此基础上，如果该位的比特数为1，再进行符号编码。流程图如图{~\ref{fig:twopasses}}所示。\textit{代码见函数SignifiancePropagationPass。}
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering  
 \includegraphics [width=6in]{twopasses.jpg} 
 \caption{重要性传播编码通道（左）及幅度精炼编码通道（右）编码流程图} 
@@ -123,7 +123,7 @@ $D_2$ & $V_1$ & $D_3$\\
 \subsubsection{清除编码通道}
 在此通道中，编码位平面中所有还未编码的数据。当一列4个比特都在此通道中被编码，且这4个比特都没有重要的相邻数据，则对4个比特采用游程编码(RLC)，否则分别对每个比特采用零编码(Zero Coding)，如数据为1，再进行符号编码(Sign Coding)。流程图如图{~\ref{fig:cleanpass}}所示。\textit{代码见函数CLeanUpPass。}
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering  
 \includegraphics [width=6in]{cleanpass.jpg} 
 \caption{清除编码通道编码流程图} 
@@ -132,14 +132,15 @@ $D_2$ & $V_1$ & $D_3$\\
 
 \subsection{编码流程}
 \subsubsection{区段分块}
-将上一步量化后的频块进一步切成32×32的区段，作为内嵌区段编码的对象，各区段之间独立运算。如频块不能被32整除，则用0补足，但是补零的同时会增加编码的冗余。
+将上一步量化后的频块进一步切成32×32的区段，作为内嵌区段编码的对象，各区段之间独立运算。如频块不能被32整除，则用0补足。//
+\textit{问题：用0补足时是否会增加编码的冗余？}
 
 \subsubsection{位元层及符号矩阵}
-对把编码区段内的数据取绝对值，依照位元深度，从高位元（MSB）到低位元（LSB）分成8个位元层。此外，由数据的正负组成符号矩阵，其中0表示正数，1表示负数。
+对把编码区段内的数据取绝对值，依照位元深度，从高位元（MSB）到低位元（LSB）分成数个位元层。（\textit{量化后的数据范围是XX–XX，故共有X位}）此外，由数据的正负组成符号矩阵，其中0表示正数，1表示负数。
 
 \subsubsection{初始化上下文、重要性等矩阵}
 在对整个区段编码的过程中，需要用到的矩阵及其含义如表{~\ref{tab:matrixForCoding}}所示。
-\begin{table}[H]
+\begin{table}[h]
 \begin{center}
 \begin{tabular}{|c|c|c|}
 \hline
@@ -174,7 +175,7 @@ D & N*1 &编码输出矩阵\\
 \label{fig:codeorder} 
 \end{figure}
 
-\begin{table}[H]
+\begin{table}[h]
 \begin{center}
 \begin{tabular}{|c|c|}
 \hline
